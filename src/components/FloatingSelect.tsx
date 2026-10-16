@@ -1,9 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  Keyboard,
   Modal,
+  Pressable,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -21,8 +24,6 @@ interface FloatingSelectProps {
   icon?: keyof typeof Ionicons.glyphMap;
   loading?: boolean;
   placeholder?: string;
-
-  // Validation Error
   error?: string;
 }
 
@@ -38,6 +39,7 @@ export default function FloatingSelect({
 }: FloatingSelectProps) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [searchText, setSearchText] = useState("");
 
   const selectedOption = options.find(
     (option) => option.value === value
@@ -49,24 +51,67 @@ export default function FloatingSelect({
 
   const hasError = Boolean(error);
 
+  // ==========================================
+  // FILTER OPTIONS
+  // ==========================================
+
+  const filteredOptions = useMemo(() => {
+    const search = searchText.trim().toLowerCase();
+
+    if (!search) {
+      return options;
+    }
+
+    return options.filter((option) => {
+      const label = String(option.label || "").toLowerCase();
+      const value = String(option.value || "").toLowerCase();
+
+      return (
+        label.includes(search) ||
+        value.includes(search)
+      );
+    });
+  }, [options, searchText]);
+
+  // ==========================================
+  // OPEN DROPDOWN
+  // ==========================================
+
   const handleOpen = () => {
     if (loading) return;
 
+    setSearchText("");
     setFocused(true);
     setVisible(true);
   };
 
-  const handleSelect = (selectedValue: string) => {
-    onValueChange(selectedValue);
+  // ==========================================
+  // SELECT OPTION
+  // ==========================================
 
+  const handleSelect = (selectedValue: string) => {
+    Keyboard.dismiss();
+
+    setSearchText("");
     setVisible(false);
     setFocused(false);
+
+    onValueChange(selectedValue);
   };
+
+  // ==========================================
+  // CLOSE DROPDOWN
+  // ==========================================
 
   const handleClose = () => {
+    setSearchText("");
     setVisible(false);
     setFocused(false);
   };
+
+  // ==========================================
+  // BORDER
+  // ==========================================
 
   const borderClass = hasError
     ? "border-red-500 bg-red-50"
@@ -82,14 +127,20 @@ export default function FloatingSelect({
 
   return (
     <View className="mb-5">
-      {/* ================= SELECT BOX ================= */}
+
+      {/* ==========================================
+          SELECT BOX
+      ========================================== */}
+
       <TouchableOpacity
         onPress={handleOpen}
         activeOpacity={0.8}
         disabled={loading}
         className={`h-16 flex-row items-center rounded-2xl border px-4 ${borderClass}`}
       >
+
         {/* Floating Label */}
+
         {isActive && (
           <Text
             className={`absolute -top-3 left-4 z-10 px-2 text-xs font-semibold ${hasError
@@ -102,6 +153,7 @@ export default function FloatingSelect({
         )}
 
         {/* Left Icon */}
+
         <Ionicons
           name={icon}
           size={21}
@@ -109,6 +161,7 @@ export default function FloatingSelect({
         />
 
         {/* Selected Value */}
+
         <Text
           className={`ml-3 flex-1 text-base ${hasValue
             ? "text-slate-900"
@@ -120,6 +173,7 @@ export default function FloatingSelect({
         </Text>
 
         {/* Dropdown Arrow */}
+
         <Ionicons
           name={
             visible
@@ -131,7 +185,10 @@ export default function FloatingSelect({
         />
       </TouchableOpacity>
 
-      {/* ================= ERROR MESSAGE ================= */}
+      {/* ==========================================
+          ERROR
+      ========================================== */}
+
       {hasError && (
         <View className="mt-2 flex-row items-center px-1">
           <Ionicons
@@ -146,18 +203,21 @@ export default function FloatingSelect({
         </View>
       )}
 
-      {/* ================= DROPDOWN MODAL ================= */}
-      {/* ================= DROPDOWN MODAL ================= */}
+      {/* ==========================================
+          DROPDOWN MODAL
+      ========================================== */}
+
       <Modal
         visible={visible}
         transparent
         animationType="fade"
         onRequestClose={handleClose}
       >
+
         {/* Backdrop */}
+
         <View className="flex-1 items-center justify-center bg-black/40 px-5">
 
-          {/* Backdrop Press */}
           <TouchableOpacity
             className="absolute inset-0"
             activeOpacity={1}
@@ -165,13 +225,18 @@ export default function FloatingSelect({
           />
 
           {/* Modal Box */}
+
           <View
             className="w-full overflow-hidden rounded-3xl bg-white"
             style={{
-              maxHeight: "70%",
+              maxHeight: "75%",
             }}
           >
-            {/* ================= FIXED HEADER ================= */}
+
+            {/* ==========================================
+                HEADER
+            ========================================== */}
+
             <View className="flex-row items-center justify-between border-b border-slate-100 px-5 py-4">
 
               <Text
@@ -192,10 +257,68 @@ export default function FloatingSelect({
                   color="#475569"
                 />
               </TouchableOpacity>
+
             </View>
 
-            {/* ================= SCROLLABLE OPTIONS ================= */}
+            {/* ==========================================
+                SEARCH BOX
+            ========================================== */}
+
+            <View className="px-5 pt-4">
+
+              <View className="flex-row items-center rounded-2xl border border-slate-200 bg-slate-50 px-4">
+
+                <Ionicons
+                  name="search-outline"
+                  size={20}
+                  color="#64748B"
+                />
+
+                <TextInput
+                  value={searchText}
+                  onChangeText={setSearchText}
+                  placeholder={`Search ${label}...`}
+                  placeholderTextColor="#94A3B8"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  className="ml-3 flex-1 py-4 text-base text-slate-900"
+                />
+
+                {searchText.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setSearchText("")}
+                  >
+                    <Ionicons
+                      name="close-circle"
+                      size={20}
+                      color="#94A3B8"
+                    />
+                  </TouchableOpacity>
+                )}
+
+              </View>
+
+            </View>
+
+            {/* ==========================================
+                RESULT COUNT
+            ========================================== */}
+
+            <View className="px-5 pt-3">
+
+              <Text className="text-xs font-medium text-slate-500">
+                {filteredOptions.length} result
+                {filteredOptions.length !== 1 ? "s" : ""}
+              </Text>
+
+            </View>
+
+            {/* ==========================================
+                OPTIONS
+            ========================================== */}
+
             <ScrollView
+              keyboardShouldPersistTaps="always"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{
                 paddingHorizontal: 20,
@@ -203,14 +326,13 @@ export default function FloatingSelect({
                 paddingBottom: 24,
               }}
             >
-              {options.map((option) => {
+              {filteredOptions.map((option) => {
                 const isSelected = option.value === value;
 
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={option.value}
                     onPress={() => handleSelect(option.value)}
-                    activeOpacity={0.7}
                     className={`mb-2 flex-row items-center justify-between rounded-2xl px-4 py-4 ${isSelected
                         ? "bg-blue-50"
                         : "bg-slate-50"
@@ -232,14 +354,16 @@ export default function FloatingSelect({
                         color="#2563EB"
                       />
                     )}
-                  </TouchableOpacity>
+                  </Pressable>
                 );
               })}
             </ScrollView>
-
           </View>
+
         </View>
+
       </Modal>
+
     </View>
   );
 }

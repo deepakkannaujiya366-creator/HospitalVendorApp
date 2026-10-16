@@ -2,13 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Print from "expo-print";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    Modal,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Image,
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 
 import { getHospitalDetails, HospitalDetails } from "../../services/masterService";
@@ -276,8 +276,8 @@ function ReceiptPreview({
 
           <Text className="text-center text-[8px] text-black">
             {hospital?.address || ""}
-            {hospital?.cname
-              ? `, ${hospital.cname}`
+            {hospital?.dname
+              ? `, ${hospital.dname}`
               : ""}
             {hospital?.sname
               ? `, ${hospital.sname}`
@@ -338,7 +338,7 @@ function ReceiptPreview({
 
           <ReceiptField
             label="Rec No"
-            value={opd.recNo}
+            value={opd.RecNo}
             align="right"
           />
 
@@ -531,8 +531,8 @@ function generateReceiptHTML(
               hospitalData.address || ""
             )}
             ${
-              hospitalData.cname
-                ? `, ${escapeHtml(hospitalData.cname)}`
+              hospitalData.dname
+                ? `, ${escapeHtml(hospitalData.dname)}`
                 : ""
             }
             ${
@@ -598,7 +598,7 @@ function generateReceiptHTML(
 
           <div>
             <b>Rec No :</b>
-            ${escapeHtml(opd.recNo || "")}
+            ${escapeHtml(opd.RecNo || "")}
           </div>
 
           <div>

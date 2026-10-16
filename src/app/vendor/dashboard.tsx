@@ -18,6 +18,7 @@ export default function Dashboard() {
 
   const [todayOPD, setTodayOPD] = useState(0);
   const [totalOPD, setTotalOPD] = useState(0);
+  const [pendingOPD, setPendingOPD] = useState(0);
 
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +43,7 @@ export default function Dashboard() {
       if (response.success) {
         setTodayOPD(Number(response.todayOPD) || 0);
         setTotalOPD(Number(response.totalOPD) || 0);
+        setPendingOPD(Number(response.pendingOPD) || 0);
       }
     } catch (error) {
       console.log("Dashboard loading error:", error);
@@ -100,71 +102,105 @@ export default function Dashboard() {
 
           {/* ================= TODAY OPD ================= */}
 
+          {/* TODAY OPD */}
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() =>
-              router.push("/vendor/opd?tab=today")
+              router.push("/vendor/opd?tab=total&period=today")
             }
             className="mb-4 w-[48%] rounded-3xl bg-white p-5"
           >
+            <View className="flex-row items-center justify-between">
+              {/* ICON LEFT */}
+              <View className="h-12 w-12 items-center justify-center rounded-2xl bg-blue-100">
+                <Ionicons
+                  name="calendar-outline"
+                  size={24}
+                  color="#2563EB"
+                />
+              </View>
 
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-blue-100">
-
-              <Ionicons
-                name="calendar-outline"
-                size={24}
-                color="#2563EB"
-              />
-
+              {/* COUNT RIGHT */}
+              <Text className="text-3xl font-bold text-blue-600">
+                {todayOPD}
+              </Text>
             </View>
 
-            <Text className="mt-4 text-3xl font-bold text-blue-600">
-              {todayOPD}
-            </Text>
-
-            <Text className="mt-1 text-base font-bold text-slate-800">
+            <Text className="mt-4 text-base font-bold text-slate-800">
               Today OPD
             </Text>
 
             <Text className="mt-1 text-xs text-slate-500">
               View Today OPD
             </Text>
-
           </TouchableOpacity>
-
 
           {/* ================= MONTHLY OPD ================= */}
 
+          {/* MONTHLY OPD */}
           <TouchableOpacity
             activeOpacity={0.8}
             onPress={() =>
-              router.push("/vendor/opd?tab=total")
+              router.push("/vendor/opd?tab=total&period=monthly")
             }
             className="mb-4 w-[48%] rounded-3xl bg-white p-5"
           >
+            <View className="flex-row items-center justify-between">
+              {/* ICON LEFT */}
+              <View className="h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
+                <Ionicons
+                  name="stats-chart-outline"
+                  size={24}
+                  color="#059669"
+                />
+              </View>
 
-            <View className="h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
-
-              <Ionicons
-                name="stats-chart-outline"
-                size={24}
-                color="#059669"
-              />
-
+              {/* COUNT RIGHT */}
+              <Text className="text-3xl font-bold text-emerald-600">
+                {totalOPD}
+              </Text>
             </View>
 
-            <Text className="mt-4 text-3xl font-bold text-emerald-600">
-              {totalOPD}
-            </Text>
-
-            <Text className="mt-1 text-base font-bold text-slate-800">
+            <Text className="mt-4 text-base font-bold text-slate-800">
               Monthly OPD
             </Text>
 
             <Text className="mt-1 text-xs text-slate-500">
               View Monthly OPD
             </Text>
+          </TouchableOpacity>
 
+          {/* PENDING OPD */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() =>
+              router.push("/vendor/opd?tab=Pending")
+            }
+            className="mb-4 w-[48%] rounded-3xl bg-white p-5"
+          >
+            <View className="flex-row items-center justify-between">
+              {/* ICON LEFT */}
+              <View className="h-12 w-12 items-center justify-center rounded-2xl bg-amber-100">
+                <Ionicons
+                  name="time-outline"
+                  size={24}
+                  color="#D97706"
+                />
+              </View>
+
+              {/* COUNT RIGHT */}
+              <Text className="text-3xl font-bold text-amber-600">
+                {pendingOPD}
+              </Text>
+            </View>
+
+            <Text className="mt-4 text-base font-bold text-slate-800">
+              Pending OPD
+            </Text>
+
+            <Text className="mt-1 text-xs text-slate-500">
+              View Pending OPDs
+            </Text>
           </TouchableOpacity>
 
         </View>

@@ -17,7 +17,7 @@ import OPDReceipt from "../../components/opd/OPDReceipt";
 
 import {
   getAreas,
-  getCitiesByState,
+  getDistrictsByState,
   getStates,
 } from "../../services/masterService";
 
@@ -33,7 +33,8 @@ interface OpdFilter {
   patient: string;
   departments: string[];
   state: string;
-  city: string;
+  district: string;
+  areatype: string;
   area: string;
 }
 
@@ -46,7 +47,8 @@ export default function TodayOpd() {
     patient: "",
     departments: [],
     state: "",
-    city: "",
+    district: "",
+    areatype: "",
     area: "",
   });
 
@@ -55,11 +57,11 @@ export default function TodayOpd() {
   // =====================================================
 
   const [states, setStates] = useState<SelectOption[]>([]);
-  const [cities, setCities] = useState<SelectOption[]>([]);
+  const [districts, setDistricts] = useState<SelectOption[]>([]);
   const [areas, setAreas] = useState<SelectOption[]>([]);
 
   const [masterLoading, setMasterLoading] = useState(false);
-  const [cityLoading, setCityLoading] = useState(false);
+  const [districtLoading, setDistrictLoading] = useState(false);
   const [areaLoading, setAreaLoading] = useState(false);
 
   // =====================================================
@@ -177,11 +179,11 @@ export default function TodayOpd() {
     setFilter((previous) => ({
       ...previous,
       state: value,
-      city: "",
+      district: "",
       area: "",
     }));
 
-    setCities([]);
+    setDistricts([]);
     setAreas([]);
 
     if (!value) {
@@ -189,7 +191,7 @@ export default function TodayOpd() {
     }
 
     try {
-      setCityLoading(true);
+      setDistrictLoading(true);
 
       const token = await getToken();
 
@@ -197,23 +199,23 @@ export default function TodayOpd() {
         throw new Error("Authentication token not found");
       }
 
-      const cityData = await getCitiesByState(value, token);
+      const districtData = await getDistrictsByState(value, token);
 
-      setCities(
-        cityData.map((item) => ({
-          label: item.cname,
-          value: String(item.cid),
+      setDistricts(
+        districtData.map((item) => ({
+          label: item.dname,
+          value: String(item.did),
         }))
       );
     } catch (error) {
       console.log("City loading error:", error);
     } finally {
-      setCityLoading(false);
+      setDistrictLoading(false);
     }
   };
 
   // =====================================================
-  // CITY CHANGE
+  // District CHANGE
   // =====================================================
 
   const handleCityChange = async (
@@ -223,7 +225,7 @@ export default function TodayOpd() {
 
     setFilter((previous) => ({
       ...previous,
-      city: value,
+      district: value,
       area: "",
     }));
 
@@ -284,11 +286,12 @@ export default function TodayOpd() {
         patient: "",
         departments: [],
         state: "",
-        city: "",
+        district: "",
+        areatype: "",
         area: "",
       });
 
-      setCities([]);
+      setDistricts([]);
       setAreas([]);
 
       void loadTodayOPDs();
@@ -316,8 +319,10 @@ export default function TodayOpd() {
         fromdate: today,
         todate: today,
         state: filter.state,
-        city: filter.city,
+        district: filter.district,
+        areatype: filter.areatype,
         area: filter.area,
+        type: "today",
       });
 
       console.log(
@@ -343,11 +348,12 @@ export default function TodayOpd() {
       patient: "",
       departments: [],
       state: "",
-      city: "",
+      district: "",
+      areatype: "",
       area: "",
     });
 
-    setCities([]);
+    setDistricts([]);
     setAreas([]);
 
     await loadTodayOPDs();
@@ -379,7 +385,7 @@ export default function TodayOpd() {
     filter.departments.includes("Patient");
 
   const isLocationSelected =
-    filter.departments.includes("State/City/Area");
+    filter.departments.includes("State/District/Area");
 
   // =====================================================
   // RENDER
@@ -418,8 +424,8 @@ export default function TodayOpd() {
               value: "Patient",
             },
             {
-              label: "State/City/Area",
-              value: "State/City/Area",
+              label: "State/District/Area",
+              value: "State/District/Area",
             },
           ]}
         />
@@ -471,19 +477,38 @@ export default function TodayOpd() {
               <Col sm={12} md={6}>
 
                 <FloatingSelect
-                  label="City"
-                  value={filter.city}
+                  label="District"
+                  value={filter.district}
                   onValueChange={handleCityChange}
-                  options={cities}
+                  options={districts}
                   icon="business-outline"
-                  loading={cityLoading}
+                  loading={districtLoading}
                   placeholder={
                     !filter.state
                       ? "Select State First"
-                      : "Select City"
+                      : "Select District"
                   }
                 />
 
+              </Col>
+
+              <Col sm={12} md={6}>
+                <FloatingSelect
+                  label="Area Type"
+                  value={filter.areatype}
+                  onValueChange={(value) =>
+                    handleFilterChange(
+                      "areatype",
+                      value
+                    )
+                  }
+                  options={[
+                    { value: "Urban", label: "Urban" },
+                    { value: "Rural", label: "Rural" }
+                  ]}
+                  icon="map-outline"
+                  placeholder="Select Area Type"
+                />
               </Col>
 
               <Col sm={12} md={6}>
@@ -501,8 +526,8 @@ export default function TodayOpd() {
                   icon="map-outline"
                   loading={areaLoading}
                   placeholder={
-                    !filter.city
-                      ? "Select City First"
+                    !filter.district
+                      ? "Select District First"
                       : "Select Area"
                   }
                 />
@@ -794,18 +819,27 @@ export default function TodayOpd() {
                   />
 
                   <DetailRow
-                    label="City"
-                    value={selectedOpd.city}
+                    label="District"
+                    value={selectedOpd.district}
                   />
 
                   <DetailRow
-                    label="Area"
-                    value={selectedOpd.area}
+                    label="City"
+                    value={selectedOpd.city_village}
+                  />
+
+                  <DetailRow
+                    label="Area Type"
+                    value={selectedOpd.areatype}
                   />
 
                   <DetailRow
                     label="Address"
                     value={selectedOpd.address}
+                  />
+                  <DetailRow
+                    label="Area"
+                    value={selectedOpd.area}
                   />
 
                 </View>
@@ -829,11 +863,11 @@ export default function TodayOpd() {
                   <DetailRow
                     label="Record No"
                     value={
-                      selectedOpd.recNo?.includes("R")
-                        ? selectedOpd.recNo.substring(
-                          selectedOpd.recNo.indexOf("R")
+                      selectedOpd.RecNo?.includes("R")
+                        ? selectedOpd.RecNo.substring(
+                          selectedOpd.RecNo.indexOf("R")
                         )
-                        : selectedOpd.recNo
+                        : selectedOpd.RecNo
                     }
                   />
 

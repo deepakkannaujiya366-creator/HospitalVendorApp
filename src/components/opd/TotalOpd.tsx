@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,7 +20,7 @@ import SelectFilter from "../../components/SelectFilter";
 
 import {
   getAreas,
-  getCitiesByState,
+  getDistrictsByState,
   getStates,
 } from "../../services/masterService";
 
@@ -41,7 +42,8 @@ interface OpdFilter {
   fromdate: Date;
   todate: Date;
   state: string;
-  city: string;
+  district: string;
+  areatype: string;
   area: string;
 }
 
@@ -67,6 +69,34 @@ const getCurrentMonthLastDate = (): Date => {
   );
 };
 
+const getTodayDate = (): Date => {
+  const today = new Date();
+
+  return new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  );
+};
+
+const getFilterDates = (period?: string): {
+  fromdate: Date;
+  todate: Date;
+} => {
+  if (period === "today") {
+    const today = getTodayDate();
+    return {
+      fromdate: today,
+      todate: new Date(today),
+    };
+  }
+
+  return {
+    fromdate: getCurrentMonthFirstDate(),
+    todate: getCurrentMonthLastDate(),
+  };
+};
+
 const formatDateForApi = (date: Date): string => {
   const year = date.getFullYear();
 
@@ -85,27 +115,27 @@ const formatDateForApi = (date: Date): string => {
 
 export default function TotalOpd() {
 
+  const { period } = useLocalSearchParams<{
+    period?: string;
+  }>();
+  
   /* ================= FILTER ================= */
 
-  const [filter, setFilter] =
-    useState<OpdFilter>({
-      patient: "",
-      departments: [],
-      fromdate:
-        getCurrentMonthFirstDate(),
-      todate:
-        getCurrentMonthLastDate(),
-      state: "",
-      city: "",
-      area: "",
-    });
-
+  const [filter, setFilter] = useState<OpdFilter>({
+    patient: "",
+    departments: [],
+    ...getFilterDates(period),
+    state: "",
+    district: "",
+    areatype: "",
+    area: "",
+  });
   /* ================= MASTER DATA ================= */
 
   const [states, setStates] =
     useState<SelectOption[]>([]);
 
-  const [cities, setCities] =
+  const [districts, setDistricts] =
     useState<SelectOption[]>([]);
 
   const [areas, setAreas] =
@@ -114,7 +144,7 @@ export default function TotalOpd() {
   const [masterLoading, setMasterLoading] =
     useState(false);
 
-  const [cityLoading, setCityLoading] =
+  const [districtLoading, setDistrictLoading] =
     useState(false);
 
   const [areaLoading, setAreaLoading] =
@@ -141,12 +171,6 @@ export default function TotalOpd() {
   const [receiptVisible, setReceiptVisible] =
     useState(false);
 
-  /* ================= INITIAL LOAD ================= */
-
-  useEffect(() => {
-    loadInitialData();
-    loadMonthlyOPDs();
-  }, []);
 
   /* ================= LOAD STATES ================= */
 
@@ -183,40 +207,47 @@ export default function TotalOpd() {
 
   /* ================= LOAD MONTHLY OPD ================= */
 
-  const loadMonthlyOPDs =
-    async (): Promise<void> => {
-      try {
-        setOpdLoading(true);
+  const loadOPDsByPeriod = async (
+    selectedPeriod?: string
+  ): Promise<void> => {
+    try {
+      setOpdLoading(true);
 
-        const token = await getToken();
+      const token = await getToken();
 
-        if (!token) {
-          throw new Error(
-            "Authentication token not found"
-          );
-        }
-
-        const data = await getOPDs(token, {
-          fromdate: formatDateForApi(
-            getCurrentMonthFirstDate()
-          ),
-          todate: formatDateForApi(
-            getCurrentMonthLastDate()
-          ),
-        });
-
-        setOpds(data);
-      } catch (error) {
-        console.log(
-          "Monthly OPD loading error:",
-          error
-        );
-
-        setOpds([]);
-      } finally {
-        setOpdLoading(false);
+      if (!token) {
+        throw new Error("Authentication token not found");
       }
-    };
+
+      const dates = getFilterDates(selectedPeriod);
+      const data = await getOPDs(token, {
+        fromdate: formatDateForApi(dates.fromdate),
+        todate: formatDateForApi(dates.todate),
+      });
+
+      setOpds(data);
+      setFilter((previous) => ({
+        ...previous,
+        fromdate: dates.fromdate,
+        todate: dates.todate,
+      }));
+    } catch (error) {
+      console.log("OPD loading error:", error);
+      setOpds([]);
+    } finally {
+      setOpdLoading(false);
+    }
+  };
+
+  /* ================= INITIAL LOAD ================= */
+
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  useEffect(() => {
+    loadOPDsByPeriod(period);
+  }, [period]);
 
   /* ================= STATE ================= */
 
@@ -227,11 +258,11 @@ export default function TotalOpd() {
     setFilter((previous) => ({
       ...previous,
       state: value,
-      city: "",
+      district: "",
       area: "",
     }));
 
-    setCities([]);
+    setDistricts([]);
     setAreas([]);
 
     if (!value) {
@@ -239,7 +270,7 @@ export default function TotalOpd() {
     }
 
     try {
-      setCityLoading(true);
+      setDistrictLoading(true);
 
       const token = await getToken();
 
@@ -249,31 +280,31 @@ export default function TotalOpd() {
         );
       }
 
-      const cityData =
-        await getCitiesByState(
+      const districtData =
+        await getDistrictsByState(
           value,
           token
         );
 
-      setCities(
-        cityData.map((item) => ({
-          label: item.cname,
-          value: String(item.cid),
+      setDistricts(
+        districtData.map((item) => ({
+          label: item.dname,
+          value: String(item.did),
         }))
       );
     } catch (error) {
       console.log(
-        "City loading error:",
+        "District loading error:",
         error
       );
     } finally {
-      setCityLoading(false);
+      setDistrictLoading(false);
     }
   };
 
-  /* ================= CITY ================= */
+  /* ================= District ================= */
 
-  const handleCityChange = async (
+  const handleDistrictChange = async (
     value: string
   ): Promise<void> => {
 
@@ -281,7 +312,7 @@ export default function TotalOpd() {
 
     setFilter((previous) => ({
       ...previous,
-      city: value,
+      district: value,
       area: "",
     }));
 
@@ -359,18 +390,15 @@ export default function TotalOpd() {
           departments: [],
           patient: "",
           state: "",
-          city: "",
+          district: "",
           area: "",
-          fromdate:
-            getCurrentMonthFirstDate(),
-          todate:
-            getCurrentMonthLastDate(),
+          ...getFilterDates(period),
         }));
 
-        setCities([]);
+        setDistricts([]);
         setAreas([]);
 
-        await loadMonthlyOPDs();
+        await loadOPDsByPeriod(period);
       }
     };
 
@@ -407,8 +435,11 @@ export default function TotalOpd() {
         state:
           filter.state,
 
-        city:
-          filter.city,
+        district:
+          filter.district,
+
+        areatype:
+          filter.areatype,
 
         area:
           filter.area,
@@ -437,19 +468,17 @@ export default function TotalOpd() {
     setFilter({
       patient: "",
       departments: [],
-      fromdate:
-        getCurrentMonthFirstDate(),
-      todate:
-        getCurrentMonthLastDate(),
+      ...getFilterDates(period),
       state: "",
-      city: "",
+      district: "",
+      areatype: "",
       area: "",
     });
 
-    setCities([]);
+    setDistricts([]);
     setAreas([]);
 
-    await loadMonthlyOPDs();
+    await loadOPDsByPeriod(period);
   };
 
   /* ================= VIEW ================= */
@@ -500,7 +529,7 @@ export default function TotalOpd() {
 
   const isLocationSelected =
     filter.departments.includes(
-      "State/City/Area"
+      "State/District/Area"
     );
 
   /* ================= RENDER ================= */
@@ -537,8 +566,8 @@ export default function TotalOpd() {
               value: "Date",
             },
             {
-              label: "State/City/Area",
-              value: "State/City/Area",
+              label: "State/District/Area",
+              value: "State/District/Area",
             },
           ]}
         />
@@ -551,181 +580,199 @@ export default function TotalOpd() {
         isDateSelected ||
         isLocationSelected) && (
 
-        <View className="mt-5">
+          <View className="mt-5">
 
-          <Row>
+            <Row>
 
-            {/* PATIENT */}
+              {/* PATIENT */}
 
-            {isPatientSelected && (
+              {isPatientSelected && (
+                <Col sm={12} md={6}>
+                  <FloatingInput
+                    label="Patient"
+                    value={filter.patient}
+                    onChangeText={(value) =>
+                      handleFilterChange(
+                        "patient",
+                        value
+                      )
+                    }
+                    icon="person-outline"
+                  />
+                </Col>
+              )}
+
+              {/* DATE */}
+
+              {isDateSelected && (
+                <>
+                  <Col sm={12} md={6}>
+                    <FloatingDatePicker
+                      label="From Date"
+                      value={
+                        filter.fromdate
+                      }
+                      onChange={(value) =>
+                        handleFilterChange(
+                          "fromdate",
+                          value
+                        )
+                      }
+                      icon="calendar-outline"
+                      loading={
+                        opdLoading
+                      }
+                    />
+                  </Col>
+
+                  <Col sm={12} md={6}>
+                    <FloatingDatePicker
+                      label="To Date"
+                      value={
+                        filter.todate
+                      }
+                      onChange={(value) =>
+                        handleFilterChange(
+                          "todate",
+                          value
+                        )
+                      }
+                      icon="calendar-outline"
+                      loading={
+                        opdLoading
+                      }
+                    />
+                  </Col>
+                </>
+              )}
+
+              {/* LOCATION */}
+
+              {isLocationSelected && (
+                <>
+                  <Col sm={12} md={6}>
+                    <FloatingSelect
+                      label="State"
+                      value={
+                        filter.state
+                      }
+                      onValueChange={
+                        handleStateChange
+                      }
+                      options={states}
+                      icon="location-outline"
+                      loading={
+                        masterLoading
+                      }
+                      placeholder="Select State"
+                    />
+                  </Col>
+
+                  <Col sm={12} md={6}>
+                    <FloatingSelect
+                      label="District"
+                      value={
+                        filter.district
+                      }
+                      onValueChange={
+                        handleDistrictChange
+                      }
+                      options={districts}
+                      icon="business-outline"
+                      loading={
+                        districtLoading
+                      }
+                      placeholder={
+                        !filter.state
+                          ? "Select State First"
+                          : "Select District"
+                      }
+                    />
+                  </Col>
+                  <Col sm={12} md={6}>
+                    <FloatingSelect
+                      label="Area Type"
+                      value={filter.areatype}
+                      onValueChange={(value) =>
+                        handleFilterChange(
+                          "areatype",
+                          value
+                        )
+                      }
+                      options={[
+                        { value: "Urban", label: "Urban" },
+                        { value: "Rural", label: "Rural" }
+                      ]}
+                      icon="map-outline"
+                      placeholder="Select Area Type"
+                    />
+                  </Col>
+
+                  <Col sm={12} md={6}>
+                    <FloatingSelect
+                      label="Area"
+                      value={
+                        filter.area
+                      }
+                      onValueChange={(value) =>
+                        handleFilterChange(
+                          "area",
+                          value
+                        )
+                      }
+                      options={areas}
+                      icon="map-outline"
+                      loading={
+                        areaLoading
+                      }
+                      placeholder={
+                        !filter.district
+                          ? "Select District First"
+                          : "Select Area"
+                      }
+                    />
+                  </Col>
+                </>
+              )}
+
+              {/* ACTIONS */}
+
               <Col sm={12} md={6}>
-                <FloatingInput
-                  label="Patient"
-                  value={filter.patient}
-                  onChangeText={(value) =>
-                    handleFilterChange(
-                      "patient",
-                      value
-                    )
-                  }
-                  icon="person-outline"
-                />
+                <View className="flex-row items-center gap-3">
+
+                  <TouchableOpacity
+                    onPress={
+                      handleSearch
+                    }
+                    className="h-14 w-14 items-center justify-center rounded-2xl bg-blue-600"
+                  >
+                    <Ionicons
+                      name="search-outline"
+                      size={23}
+                      color="#FFFFFF"
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={
+                      handleReset
+                    }
+                    className="h-14 w-14 items-center justify-center rounded-2xl bg-slate-100"
+                  >
+                    <Ionicons
+                      name="refresh-outline"
+                      size={22}
+                      color="#475569"
+                    />
+                  </TouchableOpacity>
+
+                </View>
               </Col>
-            )}
 
-            {/* DATE */}
+            </Row>
 
-            {isDateSelected && (
-              <>
-                <Col sm={12} md={6}>
-                  <FloatingDatePicker
-                    label="From Date"
-                    value={
-                      filter.fromdate
-                    }
-                    onChange={(value) =>
-                      handleFilterChange(
-                        "fromdate",
-                        value
-                      )
-                    }
-                    icon="calendar-outline"
-                    loading={
-                      opdLoading
-                    }
-                  />
-                </Col>
-
-                <Col sm={12} md={6}>
-                  <FloatingDatePicker
-                    label="To Date"
-                    value={
-                      filter.todate
-                    }
-                    onChange={(value) =>
-                      handleFilterChange(
-                        "todate",
-                        value
-                      )
-                    }
-                    icon="calendar-outline"
-                    loading={
-                      opdLoading
-                    }
-                  />
-                </Col>
-              </>
-            )}
-
-            {/* LOCATION */}
-
-            {isLocationSelected && (
-              <>
-                <Col sm={12} md={6}>
-                  <FloatingSelect
-                    label="State"
-                    value={
-                      filter.state
-                    }
-                    onValueChange={
-                      handleStateChange
-                    }
-                    options={states}
-                    icon="location-outline"
-                    loading={
-                      masterLoading
-                    }
-                    placeholder="Select State"
-                  />
-                </Col>
-
-                <Col sm={12} md={6}>
-                  <FloatingSelect
-                    label="City"
-                    value={
-                      filter.city
-                    }
-                    onValueChange={
-                      handleCityChange
-                    }
-                    options={cities}
-                    icon="business-outline"
-                    loading={
-                      cityLoading
-                    }
-                    placeholder={
-                      !filter.state
-                        ? "Select State First"
-                        : "Select City"
-                    }
-                  />
-                </Col>
-
-                <Col sm={12} md={6}>
-                  <FloatingSelect
-                    label="Area"
-                    value={
-                      filter.area
-                    }
-                    onValueChange={(value) =>
-                      handleFilterChange(
-                        "area",
-                        value
-                      )
-                    }
-                    options={areas}
-                    icon="map-outline"
-                    loading={
-                      areaLoading
-                    }
-                    placeholder={
-                      !filter.city
-                        ? "Select City First"
-                        : "Select Area"
-                    }
-                  />
-                </Col>
-              </>
-            )}
-
-            {/* ACTIONS */}
-
-            <Col sm={12} md={6}>
-              <View className="flex-row items-center gap-3">
-
-                <TouchableOpacity
-                  onPress={
-                    handleSearch
-                  }
-                  className="h-14 w-14 items-center justify-center rounded-2xl bg-blue-600"
-                >
-                  <Ionicons
-                    name="search-outline"
-                    size={23}
-                    color="#FFFFFF"
-                  />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={
-                    handleReset
-                  }
-                  className="h-14 w-14 items-center justify-center rounded-2xl bg-slate-100"
-                >
-                  <Ionicons
-                    name="refresh-outline"
-                    size={22}
-                    color="#475569"
-                  />
-                </TouchableOpacity>
-
-              </View>
-            </Col>
-
-          </Row>
-
-        </View>
-      )}
+          </View>
+        )}
 
       {/* ================= OPD LIST ================= */}
 
@@ -993,9 +1040,9 @@ export default function TotalOpd() {
                   />
 
                   <DetailRow
-                    label="City"
+                    label="District"
                     value={
-                      selectedOpd.city
+                      selectedOpd.district
                     }
                   />
 
@@ -1197,8 +1244,8 @@ function DetailRow({
 
       <Text className="flex-1 text-sm font-medium text-slate-700">
         {value === null ||
-        value === undefined ||
-        value === ""
+          value === undefined ||
+          value === ""
           ? "-"
           : String(value)}
       </Text>
@@ -1228,6 +1275,6 @@ function getShortId(
       );
     }
   }
-  
+
   return value;
 }

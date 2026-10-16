@@ -36,10 +36,12 @@ export interface OpdRecord {
   transid: string;
 
   stateid: string;
-  cityid: string;
+  districtid: string;
 
   state: string;
-  city: string;
+  district: string;
+  city_village: string;
+  areatype: string;
   area: string;
   address: string;
 
@@ -58,8 +60,10 @@ export interface GetOPDsParams {
   fromdate?: string;
   todate?: string;
   state?: string;
-  city?: string;
+  district?: string;
+  areatype?: string;
   area?: string;
+  type?: string;
 }
 export const getOPDs = async (
   token: string,
@@ -83,8 +87,61 @@ export const getOPDs = async (
     query.append("state", params.state);
   }
 
-  if (params.city) {
-    query.append("city", params.city);
+  if (params.district) {
+    query.append("district", params.district);
+  }
+
+  if (params.areatype) {
+    query.append("areatype", params.areatype);
+  }
+
+  if (params.area) {
+    query.append("area", params.area);
+  }
+
+  if (params.type) {
+    query.append("type", params.type);
+  }
+
+  const endpoint =
+    `/api/Vendor/GetOPDs?${query.toString()}`;
+
+  return apiRequest<OpdRecord[]>(
+    endpoint,
+    {
+      method: "GET",
+      token,
+    }
+  );
+};
+export const getPendingOPDs = async (
+  token: string,
+  params: GetOPDsParams = {}
+): Promise<OpdRecord[]> => {
+  const query = new URLSearchParams();
+
+  if (params.patient) {
+    query.append("patient", params.patient);
+  }
+
+  if (params.fromdate) {
+    query.append("fromdate", params.fromdate);
+  }
+
+  if (params.todate) {
+    query.append("todate", params.todate);
+  }
+
+  if (params.state) {
+    query.append("state", params.state);
+  }
+
+  if (params.district) {
+    query.append("district", params.district);
+  }
+
+  if (params.areatype) {
+    query.append("areatype", params.areatype);
   }
 
   if (params.area) {
@@ -92,7 +149,7 @@ export const getOPDs = async (
   }
 
   const endpoint =
-    `/api/Vendor/GetOPDs?${query.toString()}`;
+    `/api/Vendor/GetPendingOPDs?${query.toString()}`;
 
   return apiRequest<OpdRecord[]>(
     endpoint,

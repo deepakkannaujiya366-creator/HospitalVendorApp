@@ -9,11 +9,11 @@ export interface State {
   postdate?: string;
 }
 
-/* ================= CITY ================= */
+/* ================= District ================= */
 
-export interface City {
-  cid: number;
-  cname: string;
+export interface District {
+  did: number;
+  dname: string;
   sid: number;
   status: string;
   postdate?: string;
@@ -39,7 +39,7 @@ export interface HospitalDetails {
   contactNo: string;
   alternatecontact: string;
   sname: string;
-  cname: string;
+  dname: string;
   address: string;
   logoimg: string;
   hospitalId: string;
@@ -66,6 +66,7 @@ export interface DashboardData {
   success: boolean;
   totalOPD: string | number;
   todayOPD: string | number;
+  pendingOPD: string | number;
   message?: string;
 }
 
@@ -85,12 +86,12 @@ export const getStates = async (
 
 /* ================= CITIES ================= */
 
-export const getCitiesByState = async (
+export const getDistrictsByState = async (
   sid: string | number,
   token: string
-): Promise<City[]> => {
-  return apiRequest<City[]>(
-    `api/Vendor/GetCityByState/${sid}`,
+): Promise<District[]> => {
+  return apiRequest<District[]>(
+    `api/Vendor/GetDistrictByState/${sid}`,
     {
       method: "GET",
       token,
@@ -102,13 +103,13 @@ export const getCitiesByState = async (
 
 export const getAreas = async (
   sid: string,
-  cid: string,
+  did: string,
   token: string
 ): Promise<Area[]> => {
 
   const params = new URLSearchParams({
     sid,
-    cid,
+    did,
   });
 
   return apiRequest<Area[]>(
@@ -169,6 +170,23 @@ export const getDashboardData = async (
 ): Promise<DashboardData> => {
   return apiRequest<DashboardData>(
     "api/Vendor/GetDashboardData",
+    {
+      method: "GET",
+      token,
+    }
+  );
+};
+
+export interface Departments {
+  did: number;
+  name: string;
+}
+
+export const getDepartments = async (
+  token: string
+): Promise<Departments[]> => {
+  return apiRequest<Departments[]>(
+    "/api/Vendor/GetDepartments",
     {
       method: "GET",
       token,

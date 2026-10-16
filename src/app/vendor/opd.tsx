@@ -9,21 +9,22 @@ import {
 } from "react-native";
 
 import AddOpdForm from "../../components/opd/AddOpdForm";
-import TodayOpd from "../../components/opd/TodayOpd";
+import PendingOpd from "../../components/opd/PendingOPD";
 import TotalOpd from "../../components/opd/TotalOpd";
 
-type OpdTab = "add" | "today" | "total";
+type OpdTab = "add" | "Pending" | "total";
 
 export default function Opd() {
-  const { tab } = useLocalSearchParams<{
-    tab?: string;
-  }>();
 
+  const { tab, period } = useLocalSearchParams<{
+    tab?: string;
+    period?: string;
+  }>();
   const [activeTab, setActiveTab] = useState<OpdTab>("add");
 
   useEffect(() => {
-    if (tab === "today") {
-      setActiveTab("today");
+    if (tab === "Pending") {
+      setActiveTab("Pending");
     } else if (tab === "total") {
       setActiveTab("total");
     } else {
@@ -56,8 +57,8 @@ export default function Opd() {
 
             <Text
               className={`mt-1 text-xs font-semibold ${activeTab === "add"
-                  ? "text-blue-600"
-                  : "text-slate-400"
+                ? "text-blue-600"
+                : "text-slate-400"
                 }`}
             >
               Add OPD
@@ -68,9 +69,9 @@ export default function Opd() {
             )}
           </TouchableOpacity>
 
-          {/* TODAY OPD */}
+          {/* Peinding OPD */}
           <TouchableOpacity
-            onPress={() => setActiveTab("today")}
+            onPress={() => setActiveTab("Pending")}
             className="flex-1 items-center py-4"
             activeOpacity={0.7}
           >
@@ -78,22 +79,22 @@ export default function Opd() {
               name="calendar-outline"
               size={21}
               color={
-                activeTab === "today"
+                activeTab === "Pending"
                   ? "#2563EB"
                   : "#94A3B8"
               }
             />
 
             <Text
-              className={`mt-1 text-xs font-semibold ${activeTab === "today"
-                  ? "text-blue-600"
-                  : "text-slate-400"
+              className={`mt-1 text-xs font-semibold ${activeTab === "Pending"
+                ? "text-blue-600"
+                : "text-slate-400"
                 }`}
             >
-              Today OPD
+              Pending OPD
             </Text>
 
-            {activeTab === "today" && (
+            {activeTab === "Pending" && (
               <View className="absolute bottom-0 h-1 w-full bg-blue-600" />
             )}
           </TouchableOpacity>
@@ -116,11 +117,11 @@ export default function Opd() {
 
             <Text
               className={`mt-1 text-xs font-semibold ${activeTab === "total"
-                  ? "text-blue-600"
-                  : "text-slate-400"
+                ? "text-blue-600"
+                : "text-slate-400"
                 }`}
             >
-              Monthly OPD
+              Approved OPD's
             </Text>
 
             {activeTab === "total" && (
@@ -142,7 +143,7 @@ export default function Opd() {
       >
         {activeTab === "add" && <AddOpdForm />}
 
-        {activeTab === "today" && <TodayOpd />}
+        {activeTab === "Pending" && <PendingOpd />}
 
         {activeTab === "total" && <TotalOpd />}
       </ScrollView>

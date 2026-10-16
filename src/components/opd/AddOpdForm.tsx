@@ -8,6 +8,7 @@ import {
 import AgePicker from "../../components/AgePicker";
 import FloatingDatePicker from "../../components/FloatingDatePicker";
 import FloatingInput from "../../components/FloatingInput";
+import FloatingRadioGroup from "../../components/FloatingRadioGroup";
 import FloatingSelect from "../../components/FloatingSelect";
 import { Col, Row } from "../../components/Grid";
 import Button from "../../components/LoginButton";
@@ -16,8 +17,9 @@ import { getToken } from "../../utils/storage";
 
 import {
   getAreas,
-  getCitiesByState,
   getConcessionRemarks,
+  getDepartments,
+  getDistrictsByState,
   getStates,
 } from "../../services/masterService";
 
@@ -54,8 +56,10 @@ interface OpdFormData {
   paymentMode: string;
 
   state: string;
+  district: string;
   city: string;
   area: string;
+  areatype: string;
   address: string;
   remark: string;
   lastopddate: string;
@@ -104,8 +108,10 @@ const initialFormData: OpdFormData = {
   paymentMode: "Cash",
 
   state: "",
-  city: "",
+  district: "",
   area: "",
+  areatype: "",
+  city: "",
   address: "",
   remark: "",
   lastopddate: "",
@@ -126,13 +132,14 @@ export default function AddOpdForm() {
     useState<boolean>(false);
 
   const [states, setStates] = useState<SelectOption[]>([]);
-  const [cities, setCities] = useState<SelectOption[]>([]);
+  const [districts, setDistricts] = useState<SelectOption[]>([]);
   const [areas, setAreas] = useState<SelectOption[]>([]);
   const [concessionby, setConcessionby] = useState<SelectOption[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [departments, setDepartments] = useState<SelectOption[]>([]);
 
   const [masterLoading, setMasterLoading] = useState(false);
-  const [cityLoading, setCityLoading] = useState(false);
+  const [districtLoading, setdistrictLoading] = useState(false);
   const [areaLoading, setAreaLoading] = useState(false);
 
   interface SelectOption {
@@ -142,8 +149,13 @@ export default function AddOpdForm() {
 
   useEffect(() => {
     loadInitialData();
-    loadOPDBasics();
   }, []);
+
+  useEffect(() => {
+    if (formData.patientType === "New" && formData.opdDate) {
+      loadOPDBasics();
+    }
+  }, [formData.patientType]);
 
   const formatDateForApi = (date: Date): string => {
     const year = date.getFullYear();
@@ -160,6 +172,7 @@ export default function AddOpdForm() {
   };
   // ================= API METHOD =================
   const loadOPDBasics = async (): Promise<void> => {
+    console.log('Loaded..');
     try {
       if (!formData.opdDate) return;
 
@@ -218,23 +231,22 @@ export default function AddOpdForm() {
     emergencyfee: string;
     department: string;
     nofeedays: string;
-    oldfeedays: string;
+    oldopdfeedays: string;
     imgpath: string;
     status: string;
     date: string;
+    opduptodays: string;
     via: string;
     hospitalId: string;
   }
   const getDoctors = async (
     department: string
-  ): Promise<void> => {
+  ): Promise<Doctor[]> => {
     try {
       if (!department) {
         setDoctors([]);
-        return;
+        return [];
       }
-
-      setLoading(true);
 
       const token = await getToken();
 
@@ -252,13 +264,15 @@ export default function AddOpdForm() {
         }
       );
 
-      setDoctors(response);
+      const doctorList = Array.isArray(response) ? response : [];
 
+      setDoctors(doctorList);
+
+      return doctorList;
     } catch (error) {
       console.log("Doctors loading error:", error);
       setDoctors([]);
-    } finally {
-      setLoading(false);
+      return [];
     }
   };
   const doctorOptions: SelectOption[] = doctors.map(
@@ -320,13 +334,15 @@ export default function AddOpdForm() {
     opdDate.setHours(0, 0, 0, 0);
 
     const noFeeDays = Number(doctor.nofeedays || 0);
-    const oldFeeDays = Number(doctor.oldfeedays || 0);
+    const oldopdfeedays = Number(doctor.oldopdfeedays || 0);
 
     const diffDays = Math.floor(
       (opdDate.getTime() - lastVisit.getTime()) /
       (1000 * 60 * 60 * 24)
     );
 
+    console.log(oldopdfeedays);
+    console.log(diffDays);
     // =========================================
     // Free OPD Period
     // =========================================
@@ -339,7 +355,7 @@ export default function AddOpdForm() {
     // Old Patient Fee
     // =========================================
 
-    if (diffDays <= oldFeeDays) {
+    if (diffDays <= oldopdfeedays) {
       return Number(doctor.oldfee || 0);
     }
 
@@ -349,9 +365,12 @@ export default function AddOpdForm() {
 
     return Number(doctor.newfee || 0);
   };
-  
+
   useEffect(() => {
-    if (!formData.doctor) return;
+
+    if (!formData.doctor) {
+      return;
+    }
 
     const selectedDoctor = doctors.find(
       (doctor) =>
@@ -359,35 +378,77 @@ export default function AddOpdForm() {
         String(formData.doctor)
     );
 
-    if (!selectedDoctor) return;
+    if (!selectedDoctor) {
+      return;
+    }
 
     const fee =
       Number(
-        calculateFee(selectedDoctor, formData)
+        calculateFee(
+          selectedDoctor,
+          formData
+        )
       ) || 0;
 
     const concession =
       Number(formData.concession) || 0;
 
-    const totalAmount = Math.max(
-      0,
-      fee - concession
-    );
+    const totalAmount =
+      Math.max(
+        0,
+        fee - concession
+      );
 
-    setFormData((prev) => {
+    setFormData((previousData) => {
+
+      const updatedData: OpdFormData = {
+        ...previousData,
+
+        fee: String(fee),
+
+        totalAmount:
+          String(totalAmount),
+      };
+
+      // Cash
       if (
-        Number(prev.fee) === fee &&
-        Number(prev.totalAmount) === totalAmount
+        previousData.paymentMode === "Cash"
       ) {
-        return prev;
+
+        updatedData.cashAmount =
+          String(totalAmount);
+
+        updatedData.onlineAmount =
+          "0";
       }
 
-      return {
-        ...prev,
-        fee: String(fee),
-        totalAmount: String(totalAmount),
-        cashAmount: String(totalAmount),
-      };
+      // Online
+      else if (
+        previousData.paymentMode &&
+        previousData.paymentMode !== "Cash" &&
+        previousData.paymentMode !== "Both"
+      ) {
+
+        updatedData.cashAmount =
+          "0";
+
+        updatedData.onlineAmount =
+          String(totalAmount);
+      }
+
+      // Both
+      else if (
+        previousData.paymentMode === "Both"
+      ) {
+
+        updatedData.cashAmount =
+          previousData.cashAmount;
+
+        updatedData.onlineAmount =
+          previousData.onlineAmount;
+      }
+
+      return updatedData;
     });
 
   }, [
@@ -400,7 +461,7 @@ export default function AddOpdForm() {
     formData.olddoctor,
     formData.concession,
   ]);
-  const loadInitialData = async () => {
+  const loadInitialData = async (): Promise<void> => {
     try {
       setMasterLoading(true);
 
@@ -410,10 +471,15 @@ export default function AddOpdForm() {
         throw new Error("Authentication token not found");
       }
 
-      const [stateData, remarkData] = await Promise.all([
+      const [stateData, remarkData, departmentData] = await Promise.all([
         getStates(token),
         getConcessionRemarks(token),
+        getDepartments(token),
       ]);
+
+      console.log("States API:", stateData);
+      console.log("Concession Remarks API:", remarkData);
+      console.log("Departments API:", departmentData);
 
       setStates(
         stateData.map((item) => ({
@@ -428,8 +494,22 @@ export default function AddOpdForm() {
           value: item.name,
         }))
       );
+
+      setDepartments(
+        departmentData.map((item) => ({
+          label: item.name,
+          value: String(item.did),
+        }))
+      );
+
     } catch (error) {
-      console.log("Master data loading error:", error);
+      console.error("Master data loading error:", error);
+      Alert.alert(
+        "Error",
+        error instanceof Error
+          ? error.message
+          : "Unable to load departments."
+      );
     } finally {
       setMasterLoading(false);
     }
@@ -437,14 +517,14 @@ export default function AddOpdForm() {
 
   const handleStateChange = async (sid: string) => {
     handleChange("state", sid);
-    handleChange("city", "");
+    handleChange("district", "");
     handleChange("area", "");
 
-    setCities([]);
+    setDistricts([]);
     setAreas([]);
 
     try {
-      setCityLoading(true);
+      setdistrictLoading(true);
 
       const token = await getToken();
 
@@ -452,23 +532,23 @@ export default function AddOpdForm() {
         throw new Error("Authentication token not found");
       }
 
-      const cityData = await getCitiesByState(sid, token);
+      const districtDate = await getDistrictsByState(sid, token);
 
-      setCities(
-        cityData.map((item) => ({
-          label: item.cname,
-          value: String(item.cid),
+      setDistricts(
+        districtDate.map((item) => ({
+          label: item.dname,
+          value: String(item.did),
         }))
       );
     } catch (error) {
-      console.log("City loading error:", error);
+      console.log("district loading error:", error);
     } finally {
-      setCityLoading(false);
+      setdistrictLoading(false);
     }
   };
 
-  const handleCityChange = async (cid: string) => {
-    handleChange("city", cid);
+  const handledistrictChange = async (cid: string) => {
+    handleChange("district", cid);
     handleChange("area", "");
 
     setAreas([]);
@@ -584,18 +664,54 @@ export default function AddOpdForm() {
     field: FormField,
     value: string | Date | null | AgeData
   ): void => {
-    setFormData((previousData) => {
+
+    setFormData((previousData): OpdFormData => {
+
       let updatedData: OpdFormData = {
         ...previousData,
         [field]: value,
       };
 
       // =========================================
+      // PATIENT TYPE CHANGE
+      // =========================================
+      // if (field === "pid") {
+      //   value = value.charAt(0).toUpperCase() + value.slice(1);
+      // }
+
+      if (field === "patientType") {
+        const patientType = value as string;
+
+        if (patientType === "New") {
+          updatedData = {
+            ...initialFormData,
+            opdDate: previousData.opdDate,
+            patientType: "New",
+          };
+        } else if (patientType === "Old") {
+          updatedData = {
+            ...initialFormData,
+            opdDate: previousData.opdDate,
+            patientType: "Old",
+            patientId: "",
+          };
+        }
+
+        return updatedData;
+      }
+
+      // =========================================
       // DOB CHANGE -> AUTO CALCULATE AGE
       // =========================================
-      if (field === "dob" && value instanceof Date) {
+
+      if (
+        field === "dob" &&
+        value instanceof Date
+      ) {
+
         updatedData = {
           ...updatedData,
+          dob: value,
           age: calculateAge(value),
         };
       }
@@ -603,24 +719,219 @@ export default function AddOpdForm() {
       // =========================================
       // AGE CHANGE -> AUTO CALCULATE DOB
       // =========================================
+
       if (
         field === "age" &&
         typeof value === "object" &&
         value !== null &&
         !(value instanceof Date)
       ) {
-        const newDob = calculateDobFromAge(value as AgeData);
+
+        const ageData = value as AgeData;
 
         updatedData = {
           ...updatedData,
-          dob: newDob,
+          age: ageData,
+          dob: calculateDobFromAge(ageData),
         };
       }
 
       // =========================================
-      // FEE / CONCESSION -> CALCULATE TOTAL
+      // DEPARTMENT CHANGE -> LOAD DOCTORS
       // =========================================
-      if (field === "fee" || field === "concession") {
+
+      if (field === "department") {
+
+        const department = value as string;
+
+        updatedData = {
+          ...updatedData,
+          department: department,
+          doctor: "",
+          fee: "",
+          concession: "",
+          concessionBy: "",
+          totalAmount: "",
+          cashAmount: "",
+          onlineAmount: "",
+          transid: "",
+        };
+
+        getDoctors(department);
+      }
+
+      // =========================================
+      // DOCTOR CHANGE
+      // =========================================
+
+      if (field === "doctor") {
+
+        const doctorId = value as string;
+
+        updatedData = {
+          ...updatedData,
+          doctor: doctorId,
+        };
+
+        // Find doctor using actual Doctor.did
+        const selectedDoctor = doctors.find(
+          (doctor) =>
+            String(doctor.did) ===
+            String(doctorId)
+        );
+
+        if (selectedDoctor) {
+
+          const calculatedFee =
+            calculateFee(
+              selectedDoctor,
+              updatedData
+            );
+
+          const fee =
+            Number(calculatedFee) || 0;
+
+          const concession =
+            Number(updatedData.concession) || 0;
+
+          const totalAmount =
+            Math.max(
+              0,
+              fee - concession
+            ).toString();
+
+          updatedData = {
+            ...updatedData,
+            fee: String(fee),
+            totalAmount: totalAmount,
+          };
+
+          // =====================================
+          // PAYMENT AMOUNT
+          // =====================================
+
+          if (
+            updatedData.paymentMode === "Cash"
+          ) {
+
+            updatedData.cashAmount =
+              totalAmount;
+
+            updatedData.onlineAmount =
+              "0";
+          }
+
+          else if (
+            updatedData.paymentMode &&
+            updatedData.paymentMode !== "Cash" &&
+            updatedData.paymentMode !== "Both"
+          ) {
+
+            updatedData.cashAmount =
+              "0";
+
+            updatedData.onlineAmount =
+              totalAmount;
+          }
+
+          else if (
+            updatedData.paymentMode === "Both"
+          ) {
+
+            updatedData.cashAmount = "";
+
+            updatedData.onlineAmount = "";
+          }
+        }
+      }
+
+      // =========================================
+      // OPD TYPE CHANGE
+      // =========================================
+
+      if (field === "opdType") {
+
+        const opdType = value as string;
+
+        updatedData = {
+          ...updatedData,
+          opdType: opdType,
+        };
+
+        const selectedDoctor = doctors.find(
+          (doctor) =>
+            String(doctor.did) ===
+            String(updatedData.doctor)
+        );
+
+        if (selectedDoctor) {
+
+          const calculatedFee =
+            calculateFee(
+              selectedDoctor,
+              updatedData
+            );
+
+          const fee =
+            Number(calculatedFee) || 0;
+
+          const concession =
+            Number(updatedData.concession) || 0;
+
+          const totalAmount =
+            Math.max(
+              0,
+              fee - concession
+            ).toString();
+
+          updatedData = {
+            ...updatedData,
+            fee: String(fee),
+            totalAmount: totalAmount,
+          };
+
+          if (
+            updatedData.paymentMode === "Cash"
+          ) {
+
+            updatedData.cashAmount =
+              totalAmount;
+
+            updatedData.onlineAmount =
+              "0";
+          }
+
+          else if (
+            updatedData.paymentMode &&
+            updatedData.paymentMode !== "Both"
+          ) {
+
+            updatedData.cashAmount =
+              "0";
+
+            updatedData.onlineAmount =
+              totalAmount;
+          }
+
+          else if (
+            updatedData.paymentMode === "Both"
+          ) {
+
+            updatedData.cashAmount = "";
+            updatedData.onlineAmount = "";
+          }
+        }
+      }
+
+      // =========================================
+      // FEE / CONCESSION CHANGE
+      // =========================================
+
+      if (
+        field === "fee" ||
+        field === "concession"
+      ) {
+
         const fee =
           Number(
             field === "fee"
@@ -635,116 +946,129 @@ export default function AddOpdForm() {
               : previousData.concession
           ) || 0;
 
-        const totalAmount = Math.max(
-          0,
-          fee - concession
-        ).toString();
+        const totalAmount =
+          Math.max(
+            0,
+            fee - concession
+          ).toString();
 
         updatedData = {
           ...updatedData,
-          totalAmount,
+          totalAmount: totalAmount,
         };
 
-        // =========================================
-        // PAYMENT MODE KE ACCORDING AMOUNT UPDATE
-        // =========================================
+        if (
+          previousData.paymentMode === "Cash"
+        ) {
 
-        if (previousData.paymentMode === "Cash") {
-          updatedData.cashAmount = totalAmount;
-          updatedData.onlineAmount = "0";
+          updatedData.cashAmount =
+            totalAmount;
+
+          updatedData.onlineAmount =
+            "0";
         }
 
-        if (
+        else if (
           previousData.paymentMode &&
           previousData.paymentMode !== "Cash" &&
           previousData.paymentMode !== "Both"
         ) {
+
           updatedData.cashAmount = "0";
-          updatedData.onlineAmount = totalAmount;
+
+          updatedData.onlineAmount =
+            totalAmount;
         }
 
-        if (previousData.paymentMode === "Both") {
-          // User manually Cash + Online enter karega
-          updatedData.cashAmount = previousData.cashAmount;
-          updatedData.onlineAmount = previousData.onlineAmount;
+        else if (
+          previousData.paymentMode === "Both"
+        ) {
+
+          updatedData.cashAmount =
+            previousData.cashAmount;
+
+          updatedData.onlineAmount =
+            previousData.onlineAmount;
         }
       }
 
       // =========================================
       // PAYMENT MODE CHANGE
       // =========================================
+
       if (field === "paymentMode") {
-        const paymentMode = value as string;
+
+        const paymentMode =
+          value as string;
 
         const totalAmount =
-          Number(previousData.totalAmount) || 0;
+          Number(
+            previousData.totalAmount
+          ) || 0;
 
         updatedData = {
           ...updatedData,
-          paymentMode,
+          paymentMode: paymentMode,
         };
 
         // CASH
         if (paymentMode === "Cash") {
-          updatedData.cashAmount = String(totalAmount);
-          updatedData.onlineAmount = "0";
+
+          updatedData.cashAmount =
+            String(totalAmount);
+
+          updatedData.onlineAmount =
+            "0";
+
           updatedData.transid = "";
         }
 
         // UPI / CARD / INTERNET BANKING
         else if (paymentMode !== "Both") {
-          updatedData.cashAmount = "0";
-          updatedData.onlineAmount = String(totalAmount);
+
+          updatedData.cashAmount =
+            "0";
+
+          updatedData.onlineAmount =
+            String(totalAmount);
         }
 
         // BOTH
-        else if (paymentMode === "Both") {
+        else {
+
           updatedData.cashAmount = "";
+
           updatedData.onlineAmount = "";
+
           updatedData.transid = "";
         }
       }
 
       // =========================================
-      // PATIENT TYPE
+      // CASH / ONLINE AMOUNT CHANGE
       // =========================================
-      if (field === "patientType") {
-        const patientType = value as string;
+
+      if (
+        field === "cashAmount" ||
+        field === "onlineAmount"
+      ) {
 
         updatedData = {
           ...updatedData,
-          patientType,
+          [field]: value as string,
         };
-
-        if (patientType === "Old") {
-          updatedData.patientId = "";
-        } else {
-          loadOPDBasics();
-        }
-      }
-
-      // =========================================
-      // DEPARTMENT CHANGE -> LOAD DOCTORS
-      // =========================================
-      if (field === "department") {
-        const department = value as string;
-
-        updatedData = {
-          ...updatedData,
-          department,
-          doctor: "",
-        };
-
-        getDoctors(department);
       }
 
       return updatedData;
     });
 
+
     // =========================================
     // CLEAR VALIDATION ERRORS
     // =========================================
+
     setErrors((previousErrors) => {
+
       const updatedErrors = {
         ...previousErrors,
       };
@@ -944,14 +1268,28 @@ export default function AddOpdForm() {
         "Please enter state";
     }
 
+    if (!formData.district.trim()) {
+      newErrors.district =
+        "Please enter district";
+    }
+
+    if (!formData.areatype) {
+      newErrors.areatype =
+        "Please select Area Type";
+    }
+
     if (!formData.city.trim()) {
-      newErrors.city =
-        "Please enter city";
+      newErrors.city = "Please enter city";
     }
 
     if (!formData.address.trim()) {
       newErrors.address =
         "Please enter address";
+    }
+
+    if (!formData.area.trim()) {
+      newErrors.area =
+        "Please enter Area";
     }
 
     setErrors(newErrors);
@@ -966,22 +1304,13 @@ export default function AddOpdForm() {
   // =============================================
 
   const handleSubmit = async (): Promise<void> => {
-    if (!validateForm()) {
-      Alert.alert(
-        "Validation Error",
-        "Please fill all required fields correctly."
-      );
-
+    const isValid = validateForm();
+    if (!isValid) {
       return;
     }
-
     try {
       setLoading(true);
-
-      console.log("Submitting OPD...");
-
       const token = await getToken();
-
       if (!token) {
         throw new Error("Token not found");
       }
@@ -997,7 +1326,15 @@ export default function AddOpdForm() {
 
       fd.append("ptype", formData.patientType || "");
       fd.append("pid", formData.patientId || "");
-      fd.append("department", formData.department || "");
+      const selectedDepartment = departments.find(
+        item => item.value === formData.department
+      );
+
+      fd.append(
+        "department",
+        selectedDepartment?.label || ""
+      );
+      // fd.append("department", formData.department || "");
       fd.append("did", formData.doctor || "");
       fd.append("opdtype", formData.opdType || "");
 
@@ -1036,8 +1373,10 @@ export default function AddOpdForm() {
       fd.append("transid", formData.transid || "");
 
       fd.append("state", formData.state || "");
-      fd.append("city", formData.city || "");
+      fd.append("district", formData.district || "");
+      fd.append("city_village", formData.city || "");
       fd.append("area", formData.area || "");
+      fd.append("areatype", formData.areatype || "");
       fd.append("address", formData.address || "");
       fd.append("remark", formData.remark || "");
 
@@ -1133,6 +1472,7 @@ export default function AddOpdForm() {
         success?: boolean;
         message?: string;
         patient?: {
+          department?: string;
           olddoctor?: string;
           title?: string;
           pname?: string;
@@ -1143,7 +1483,9 @@ export default function AddOpdForm() {
           dob?: string;
           occupation?: string;
           state?: string | number;
-          city?: string | number;
+          district?: string | number;
+          city_village?: string;
+          areatype?: string;
           area?: string;
           address?: string;
           lastopddate?: string;
@@ -1173,7 +1515,19 @@ export default function AddOpdForm() {
       }
 
       const patient = response.patient;
+      // =========================================
+      // DEPARTMENT MAPPING
+      // =========================================
 
+      const departmentName = patient.department || "";
+
+      const selectedDepartment = departments.find(
+        (item) =>
+          item.label?.trim().toLowerCase() ===
+          departmentName.trim().toLowerCase()
+      );
+
+      const departmentId = selectedDepartment?.value || "";
       // =========================================
       // DOB FORMAT & AGE CALCULATION
       // API DOB example: dd/MM/yyyy
@@ -1213,7 +1567,7 @@ export default function AddOpdForm() {
 
       setFormData((prev) => ({
         ...prev,
-
+        department: departmentId,
         // Doctor information
         olddoctor: patient.olddoctor || "",
         // Patient information
@@ -1234,10 +1588,12 @@ export default function AddOpdForm() {
           ? String(patient.state)
           : "",
 
-        city: patient.city
-          ? String(patient.city)
+        district: patient.district
+          ? String(patient.district)
           : "",
 
+        city: patient.city_village || "",
+        areatype: patient.areatype || "",
         area: patient.area || "",
         address: patient.address || "",
 
@@ -1253,30 +1609,42 @@ export default function AddOpdForm() {
           ? String(patient.visit)
           : prev.visit,
       }));
+      if (departmentId) {
+        const doctorList = await getDoctors(departmentId);
 
+        const selectedDoctor = doctorList.find(
+          (item) => String(item.did) === String(patient.olddoctor)
+        );
+
+        setFormData((prev) => ({
+          ...prev,
+          olddoctor: String(patient.olddoctor),
+          doctor: selectedDoctor ? String(selectedDoctor.did) : "",
+        }));
+      }
       // =========================================
-      // LOAD CITIES AFTER STATE
+      // LOAD districts AFTER STATE
       // =========================================
 
       if (patient.state) {
-        const cityData = await getCitiesByState(patient.state, token);
+        const districtData = await getDistrictsByState(patient.state, token);
 
-        setCities(
-          cityData.map((item) => ({
-            label: item.cname,
-            value: String(item.cid),
+        setDistricts(
+          districtData.map((item) => ({
+            label: item.dname,
+            value: String(item.did),
           }))
         );
       }
 
       // =========================================
-      // LOAD AREAS AFTER CITY
+      // LOAD AREAS AFTER district
       // =========================================
 
-      if (patient.state && patient.city) {
+      if (patient.state && patient.district) {
         const areaData = await getAreas(
           String(patient.state),
-          String(patient.city),
+          String(patient.district),
           token
         );
 
@@ -1321,13 +1689,33 @@ export default function AddOpdForm() {
 
         {/* LEFT SIDE - TITLE */}
         <View className="flex-1 pt-1">
-          <Text className="text-xl font-bold text-slate-900">
-            Add New OPD
+          <Text className="text-xl font-bold mb-2 text-slate-900">
+            Add OPD
           </Text>
 
-          <Text className="mt-1 text-sm text-slate-500">
-            Register a new patient for OPD.
+          <Text className="mt-1 mb-2 text-sm text-slate-500">
+            Register a patient for OPD.
           </Text>
+
+          <FloatingRadioGroup
+            value={formData.patientType}
+            onValueChange={(value) =>
+              handleChange("patientType", value)
+            }
+            options={[
+              {
+                label: "New",
+                value: "New",
+              },
+              {
+                label: "Old",
+                value: "Old",
+              },
+            ]}
+            loading={loading}
+            error={errors.patientType}
+            align="start"
+          />
         </View>
 
         {/* RIGHT SIDE - OPD DETAILS */}
@@ -1342,6 +1730,7 @@ export default function AddOpdForm() {
             <Text className="ml-5 text-base font-bold text-blue-600">
               {formData.opdno || "-"}
             </Text>
+
           </View>
 
           {/* VISIT BUTTON */}
@@ -1368,62 +1757,31 @@ export default function AddOpdForm() {
         {/* OPD DETAILS */}
         {/* ======================================= */}
         <Row>
-          <Col sm={12} md={6}>
-            <FloatingDatePicker
-              label="Date"
-              value={formData.opdDate}
-              onChange={(value) =>
-                handleChange("opdDate", value)
-              }
-              icon="calendar-outline"
-              error={errors.opdDate}
-              loading={loading}
-            />
-          </Col>
-          <Col sm={12} md={6}>
-            <FloatingSelect
-              label="Patient Type"
-              value={formData.patientType}
-              onValueChange={(value) =>
-                handleChange("patientType", value)
-              }
-              icon="people-outline"
-              loading={loading}
-              error={errors.patientType}
-              options={[
-                {
-                  label: "New",
-                  value: "New",
-                },
-                {
-                  label: "Old",
-                  value: "Old",
-                },
-              ]}
-            />
-          </Col>
-
-          <Col sm={12} md={6}>
-            <FloatingInput
-              label="Patient ID"
-              value={formData.patientId}
-              onChangeText={(value) =>
-                handleChange("patientId", value)
-              }
-              onBlur={() => {
-                if (
-                  formData.patientType === "Old" &&
-                  formData.patientId.trim()
-                ) {
-                  getOPDDetails();
-                }
-              }}
-              icon="card-outline"
-              loading={loading}
-              error={errors.patientId}
-              readOnly={!isOldPatient}
-            />
-          </Col>
+          {formData.patientType === "Old" && (
+            <>
+              <Col sm={12} md={6}>
+                <FloatingInput
+                  label="Patient ID"
+                  value={formData.patientId}
+                  onChangeText={(value) =>
+                    handleChange("patientId", value)
+                  }
+                  onBlur={() => {
+                    if (
+                      formData.patientType === "Old" &&
+                      formData.patientId.trim()
+                    ) {
+                      getOPDDetails();
+                    }
+                  }}
+                  icon="card-outline"
+                  loading={loading}
+                  error={errors.patientId}
+                  readOnly={!isOldPatient}
+                />
+              </Col>
+            </>
+          )}
           <Col sm={12} md={6}>
             <FloatingSelect
               label="Department"
@@ -1434,24 +1792,7 @@ export default function AddOpdForm() {
               icon="business-outline"
               loading={loading}
               error={errors.department}
-              options={[
-                { value: "Emergency Department (Casualty)", label: "Emergency Department (Casualty)" },
-                { value: "General Medicine", label: "General Medicine" },
-                { value: "General Surgery", label: "General Surgery" },
-                { value: "Pediatrics (Child Care)", label: "Pediatrics (Child Care)" },
-                { value: "Gynecology & Obstetrics", label: "Gynecology & Obstetrics" },
-                { value: "Orthopedics", label: "Orthopedics" },
-                { value: "Cardiology", label: "Cardiology" },
-                { value: "Neurology", label: "Neurology" },
-                { value: "Nephrology", label: "Nephrology" },
-                { value: "Urology", label: "Urology" },
-                { value: "Dermatology", label: "Dermatology" },
-                { value: "Ophthalmology (Eye)", label: "Ophthalmology (Eye)" },
-                { value: "ENT (Ear, Nose & Throat)", label: "ENT (Ear, Nose & Throat)" },
-                { value: "Psychiatry", label: "Psychiatry" },
-                { value: "Pulmonology", label: "Pulmonology" },
-                { value: "Oncology (Cancer)", label: "Oncology (Cancer)" }
-              ]}
+              options={departments}
             />
           </Col>
           <Col sm={12} md={6}>
@@ -1465,6 +1806,37 @@ export default function AddOpdForm() {
               loading={loading}
               error={errors.doctor}
               options={doctorOptions}
+            />
+          </Col>
+          <Col sm={12} md={6}>
+            <FloatingDatePicker
+              label="Date"
+              value={formData.opdDate}
+              onChange={(value) =>
+                handleChange("opdDate", value)
+              }
+              icon="calendar-outline"
+              error={errors.opdDate}
+              loading={loading}
+
+              minimumDate={new Date()}
+
+              maximumDate={
+                new Date(
+                  Date.now() +
+                  Number(
+                    doctors.find(
+                      (d) =>
+                        String(d.did) ===
+                        String(formData.doctor)
+                    )?.opduptodays || 0
+                  ) *
+                  24 *
+                  60 *
+                  60 *
+                  1000
+                )
+              }
             />
           </Col>
           <Col sm={12} md={6}>
@@ -1545,32 +1917,6 @@ export default function AddOpdForm() {
             />
           </Col>
           <Col sm={12} md={6}>
-            <FloatingInput
-              label="UHID"
-              value={formData.uhid}
-              onChangeText={(value) =>
-                handleChange("uhid", value)
-              }
-              icon="barcode-outline"
-              loading={loading}
-              error={errors.uhid}
-            />
-          </Col>
-          <Col sm={12} md={6}>
-            <FloatingInput
-              label="Aadhar No."
-              value={formData.aadharNo}
-              onChangeText={(value) =>
-                handleChange("aadharNo", value)
-              }
-              icon="card-outline"
-              keyboardType="numeric"
-              maxLength={12}
-              loading={loading}
-              error={errors.aadharNo}
-            />
-          </Col>
-          <Col sm={12} md={6}>
             <FloatingSelect
               label="Gender"
               value={formData.gender}
@@ -1645,22 +1991,41 @@ export default function AddOpdForm() {
             />
           </Col>
           <Col sm={12} md={6}>
-            <FloatingSelect
+            <FloatingInput
               label="Occupation"
               value={formData.occupation}
-              onValueChange={(value) =>
+              onChangeText={(value) =>
                 handleChange("occupation", value)
               }
               icon="briefcase-outline"
               loading={loading}
               error={errors.occupation}
-              options={[
-                { value: "Private Sector", label: "Private Sector" },
-                { value: "Government Sector", label: "Government Sector" },
-                { value: "Business", label: "Business" },
-                { value: "Housewife", label: "Housewife" },
-                { value: "Other", label: "Other" }
-              ]}
+            />
+          </Col>
+          <Col sm={12} md={6}>
+            <FloatingInput
+              label="UHID"
+              value={formData.uhid}
+              onChangeText={(value) =>
+                handleChange("uhid", value)
+              }
+              icon="barcode-outline"
+              loading={loading}
+              error={errors.uhid}
+            />
+          </Col>
+          <Col sm={12} md={6}>
+            <FloatingInput
+              label="Aadhar No."
+              value={formData.aadharNo}
+              onChangeText={(value) =>
+                handleChange("aadharNo", value)
+              }
+              icon="card-outline"
+              keyboardType="numeric"
+              maxLength={12}
+              loading={loading}
+              error={errors.aadharNo}
             />
           </Col>
         </Row>
@@ -1851,18 +2216,61 @@ export default function AddOpdForm() {
           </Col>
           <Col sm={12} md={6}>
             <FloatingSelect
-              label="City"
-              value={formData.city}
-              onValueChange={handleCityChange}
-              options={cities}
-              icon="business-outline"
-              loading={cityLoading}
-              error={errors.city}
+              label="District"
+              value={formData.district}
+              onValueChange={handledistrictChange}
+              options={districts}
+              icon="navigate-outline"
+              loading={districtLoading}
+              error={errors.district}
               placeholder={
                 !formData.state
                   ? "Select State First"
-                  : "Select City"
+                  : "Select District"
               }
+            />
+          </Col>
+          <Col sm={12} md={6}>
+            <FloatingSelect
+              label="Area Type"
+              value={formData.areatype}
+              onValueChange={(value) =>
+                handleChange("areatype", value)
+              }
+              options={[
+                { value: "Urban", label: "Urban" },
+                { value: "Rural", label: "Rural" }
+              ]}
+              icon="map-outline"
+              loading={areaLoading}
+              error={errors.areatype}
+              placeholder={
+                "Select Area Type"
+              }
+            />
+          </Col>
+          <Col sm={12} md={6}>
+            <FloatingInput
+              label="City"
+              value={formData.city}
+              onChangeText={(value) =>
+                handleChange("city", value)
+              }
+              icon="business-outline"
+              loading={loading}
+              error={errors.city}
+            />
+          </Col>
+          <Col sm={12} md={6}>
+            <FloatingInput
+              label="Address"
+              value={formData.address}
+              onChangeText={(value) =>
+                handleChange("address", value)
+              }
+              icon="home-outline"
+              loading={loading}
+              error={errors.address}
             />
           </Col>
           <Col sm={12} md={6}>
@@ -1877,22 +2285,10 @@ export default function AddOpdForm() {
               loading={areaLoading}
               error={errors.area}
               placeholder={
-                !formData.city
-                  ? "Select City First"
+                !formData.district
+                  ? "Select District First"
                   : "Select Area"
               }
-            />
-          </Col>
-          <Col sm={12} md={6}>
-            <FloatingInput
-              label="Address"
-              value={formData.address}
-              onChangeText={(value) =>
-                handleChange("address", value)
-              }
-              icon="home-outline"
-              loading={loading}
-              error={errors.address}
             />
           </Col>
           <Col sm={12} md={6}>
